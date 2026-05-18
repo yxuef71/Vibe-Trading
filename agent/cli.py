@@ -1281,7 +1281,7 @@ def _show_settings() -> None:
             console.print(panel)
     else:
         console.print(Columns(panels, expand=True, equal=True))
-    console.print("[dim]Edit configuration in agent/.env, or run vibe-trading init.[/dim]")
+    console.print("[dim]Edit configuration in ~/.vibe-trading/.env, or run vibe-trading init.[/dim]")
 
 
 def _handle_slash_command(input_str: str, *, max_iter: int) -> None:
@@ -2372,7 +2372,7 @@ def _handle_prompt_command(
     return cmd_run(resolved_prompt, max_iter, json_mode=json_mode, no_rich=no_rich)
 
 
-_INIT_ENV_PATH = AGENT_DIR / ".env"
+_INIT_ENV_PATH = Path.home() / ".vibe-trading" / ".env"
 
 _PROVIDER_CHOICES: list[dict[str, str | None]] = [
     {
@@ -2695,7 +2695,7 @@ def cmd_memory_forget(name: str, *, yes: bool = False, memory_dir: Optional[Path
 
 
 def cmd_init() -> int:
-    """Interactive setup: create agent/.env."""
+    """Interactive setup: create ~/.vibe-trading/.env."""
     console.print(Panel("[bold cyan]Vibe-Trading setup[/bold cyan]\n[dim]Configure the default LLM provider and data tokens.[/dim]", border_style="cyan"))
 
     if _INIT_ENV_PATH.exists():
@@ -2778,7 +2778,12 @@ def cmd_init() -> int:
     if tushare_token:
         env_values["TUSHARE_TOKEN"] = tushare_token
 
+    _INIT_ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
     _INIT_ENV_PATH.write_text(_render_env_content(env_values), encoding="utf-8")
+    try:
+        _INIT_ENV_PATH.chmod(0o600)
+    except OSError:
+        pass
 
     next_steps = Table.grid(expand=True)
     next_steps.add_column(width=10, style="dim")
