@@ -62,6 +62,8 @@ EXIT_SUCCESS = 0
 EXIT_RUN_FAILED = 1
 EXIT_USAGE_ERROR = 2
 RICH_TAG_PATTERN = re.compile(r"\[/?[^\]]+\]")
+SWARM_RUN_USAGE = """--swarm-run PRESET '{"k":"v"}'"""
+SWARM_RUN_VARS_PREVIEW_CHARS = 80
 
 from cli._version import __version__ as _VERSION  # noqa: E402 — single source of truth
 
@@ -71,6 +73,47 @@ if TYPE_CHECKING:
 # Agent color assignments for swarm display
 _AGENT_STYLES = ["cyan", "magenta", "green", "yellow", "blue", "bright_red", "bright_cyan", "bright_magenta"]
 _agent_color_map: dict[str, str] = {}
+
+
+def _truncate_swarm_vars_preview(value: str) -> str:
+    """Return a compact preview for a CLI JSON token."""
+    if len(value) <= SWARM_RUN_VARS_PREVIEW_CHARS:
+        return value
+    return value[: SWARM_RUN_VARS_PREVIEW_CHARS - 3] + "..."
+
+
+def _print_swarm_vars_json_error(vars_json: str, exc: json.JSONDecodeError) -> None:
+    """Print actionable JSON diagnostics for ``--swarm-run`` vars."""
+    preview = rich_escape(_truncate_swarm_vars_preview(vars_json))
+    console.print(
+        "[red]Invalid JSON for --swarm-run VARS.[/red]\n"
+        f"Offending string: {preview}\n"
+        f"JSON parse error: {rich_escape(str(exc))}\n"
+        f"Correct usage: {SWARM_RUN_USAGE}\n"
+        "shell quoting is the usual culprit; wrap the JSON in single quotes."
+    )
+
+
+def _parse_swarm_run_args(values: list[str]) -> tuple[str, Optional[str]] | None:
+    """Validate ``--swarm-run`` values before starting the swarm."""
+    if len(values) > 2:
+        extras = ", ".join(rich_escape(repr(token)) for token in values[2:])
+        console.print(
+            "[red]Invalid --swarm-run arguments:[/red] "
+            f"unexpected extra token(s): {extras}\n"
+            f"Correct usage: {SWARM_RUN_USAGE}"
+        )
+        return None
+
+    preset = values[0]
+    vars_json = values[1] if len(values) > 1 else None
+    if vars_json:
+        try:
+            json.loads(vars_json)
+        except json.JSONDecodeError as exc:
+            _print_swarm_vars_json_error(vars_json, exc)
+            return None
+    return preset, vars_json
 
 _HAS_PROMPT_TOOLKIT = False
 try:
@@ -2069,7 +2112,7 @@ class _SwarmDashboard:
         return table
 
 
-def cmd_swarm_run_live(preset: str, vars_json: Optional[str] = None) -> None:
+def cmd_swarm_run_live(preset: str, vars_json: Optional[str] = None) -> Optional[int]:
     """Run a swarm preset with Rich Live dashboard."""
     from rich.live import Live
     from src.config import load_swarm_agent_config
@@ -2082,8 +2125,8 @@ def cmd_swarm_run_live(preset: str, vars_json: Optional[str] = None) -> None:
         try:
             user_vars = json.loads(vars_json)
         except json.JSONDecodeError as exc:
-            console.print(f"[red]Invalid JSON: {exc}[/red]")
-            return
+            _print_swarm_vars_json_error(vars_json, exc)
+            return EXIT_USAGE_ERROR
 
     store = SwarmStore(base_dir=SWARM_DIR)
     agent_config = load_swarm_agent_config()
@@ -2400,9 +2443,9 @@ def cmd_swarm_presets() -> None:
     console.print(table)
 
 
-def cmd_swarm_run(preset: str, vars_json: Optional[str] = None) -> None:
+def cmd_swarm_run(preset: str, vars_json: Optional[str] = None) -> Optional[int]:
     """Run swarm preset (legacy polling mode, use cmd_swarm_run_live for streaming)."""
-    cmd_swarm_run_live(preset, vars_json)
+    return cmd_swarm_run_live(preset, vars_json)
 
 
 def cmd_swarm_inspect(preset: str) -> int:
@@ -5388,8 +5431,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.swarm_inspect:
         return _coerce_exit_code(cmd_swarm_inspect(args.swarm_inspect))
     if args.swarm_run:
-        preset_name = args.swarm_run[0]
-        vars_json = args.swarm_run[1] if len(args.swarm_run) > 1 else None
+        parsed_swarm_run = _parse_swarm_run_args(args.swarm_run)
+        if parsed_swarm_run is None:
+            return EXIT_USAGE_ERROR
+        preset_name, vars_json = parsed_swarm_run
         return _coerce_exit_code(cmd_swarm_run_live(preset_name, vars_json))
     if args.swarm_list:
         return _coerce_exit_code(cmd_swarm_list())
