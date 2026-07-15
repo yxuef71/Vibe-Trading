@@ -183,11 +183,11 @@ class DataConfig(_EnvBase):
 class OcrConfig(_EnvBase):
     """OCR engine selection and model configuration.
 
-    Sources: ``src/tools/ocr/engine.py``, ``src/tools/ocr/qwen_vision_ocr.py``.
+    Sources: ``src/tools/ocr/engine.py``, ``src/tools/ocr/llm_vision_ocr.py``.
     """
 
     vibe_trading_ocr_engine: str = Field(alias="VIBE_TRADING_OCR_ENGINE", default="auto")
-    vibe_trading_ocr_qwen_model: str = Field(alias="VIBE_TRADING_OCR_QWEN_MODEL", default="")
+    vibe_trading_ocr_llm_model: str = Field(alias="VIBE_TRADING_OCR_LLM_MODEL", default="")
 
 
 # ---------------------------------------------------------------------------

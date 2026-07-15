@@ -119,7 +119,7 @@ def _parse_pages(pages_str: str, total: int) -> list[int]:
     return sorted(set(out))
 
 
-def _read_pdf(path: Path, pages: str) -> str:
+def _read_pdf(path: Path, pages: str, min_text_per_page: int = _MIN_TEXT_PER_PAGE) -> str:
     """Extract PDF text; OCR pages with too little text."""
     try:
         import pypdfium2 as pdfium  # type: ignore
@@ -139,7 +139,7 @@ def _read_pdf(path: Path, pages: str) -> str:
                 continue
             page = doc[i]
             text = page.get_textpage().get_text_range().strip()
-            if len(text) >= _MIN_TEXT_PER_PAGE:
+            if len(text) >= min_text_per_page:
                 chunks.append(f"--- Page {i + 1} ---\n{text}")
                 emit_progress(
                     "reading_pdf",
@@ -179,12 +179,33 @@ def _read_pdf(path: Path, pages: str) -> str:
                 f"All {total_pages} page(s) are scanned/image pages with no "
                 f"extractable text, and no OCR engine is available. {hint}"
             )
+        engine = _get_ocr()
+
+        # Compute OCR quality metrics
+        pages_read = len(targets)
+        text_density = len(full) / max(pages_read, 1)
+
+        if ocr_pages == 0:
+            quality_flag = "no_ocr_needed" if not skipped_pages else "no_ocr_engine"
+        elif skipped_pages > 0:
+            quality_flag = "degraded"
+        else:
+            quality_flag = "good"
+
+        ocr_quality = {
+            "ocr_pages": ocr_pages,
+            "text_density": round(text_density, 1),
+            "quality_flag": quality_flag,
+        }
+
         return _envelope(
             path, "pdf", full,
             total_pages=total_pages,
             pages_read=len(targets),
             ocr_pages=ocr_pages,
             skipped_pages=skipped_pages,
+            ocr_engine=engine.name if engine else None,
+            ocr_quality=ocr_quality,
         )
     finally:
         doc.close()
@@ -278,9 +299,30 @@ def _read_image(path: Path) -> str:
         )
 
     text = _ocr_image_array(img)
+    engine = _get_ocr()
     if not text.strip():
-        return _envelope(path, "image", "", note="OCR returned no text (empty or unreadable image)")
-    return _envelope(path, "image", text)
+        ocr_quality = {
+            "ocr_pages": 0,
+            "text_density": 0.0,
+            "quality_flag": "degraded",
+        }
+        return _envelope(
+            path, "image", "",
+            ocr_engine=engine.name if engine else None,
+            ocr_quality=ocr_quality,
+            note="OCR returned no text (empty or unreadable image)",
+        )
+    # Image = 1 page; text_density is total chars (matches PDF chars/page).
+    ocr_quality = {
+        "ocr_pages": 1,
+        "text_density": round(len(text) / 1, 1),
+        "quality_flag": "good",
+    }
+    return _envelope(
+        path, "image", text,
+        ocr_engine=engine.name if engine else None,
+        ocr_quality=ocr_quality,
+    )
 
 
 # ---------------- Plain text ----------------
@@ -308,12 +350,14 @@ _HANDLERS: dict[str, Callable[[Path], str]] = {
 }
 
 
-def read_document(file_path: str, pages: str = "") -> str:
+def read_document(file_path: str, pages: str = "", min_text_per_page: int = _MIN_TEXT_PER_PAGE) -> str:
     """Read any supported document; dispatch by extension.
 
     Args:
         file_path: Absolute path to the file.
         pages: Only used for PDF — e.g. "1-10", "5", "1,3,5-8"; empty = all.
+        min_text_per_page: Minimum text chars to consider a page as text-extracted
+            (below this threshold triggers OCR for PDFs). Default 50.
 
     Returns:
         JSON envelope: status, file, format, char_count, truncated, text,
@@ -331,7 +375,7 @@ def read_document(file_path: str, pages: str = "") -> str:
     ext = path.suffix.lower()
     try:
         if ext == ".pdf":
-            return _read_pdf(path, pages)
+            return _read_pdf(path, pages, min_text_per_page=min_text_per_page)
         if ext in _HANDLERS:
             return _HANDLERS[ext](path)
         if ext in _IMAGE_EXTS:
@@ -363,10 +407,19 @@ class DocReaderTool(BaseTool):
                 "description": "PDF only: page range (e.g. '1-10', '5', '1,3,5-8'). Ignored for other formats.",
                 "default": "",
             },
+            "min_text_per_page": {
+                "type": "integer",
+                "description": "PDF only: minimum text chars per page before OCR is triggered. Default 50.",
+                "default": 50,
+            },
         },
         "required": ["file_path"],
     }
     repeatable = True
 
     def execute(self, **kwargs: Any) -> str:
-        return read_document(kwargs["file_path"], kwargs.get("pages", ""))
+        return read_document(
+            kwargs["file_path"],
+            kwargs.get("pages", ""),
+            min_text_per_page=kwargs.get("min_text_per_page", _MIN_TEXT_PER_PAGE),
+        )
