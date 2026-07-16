@@ -245,24 +245,29 @@ def get_llm_credentials(
     key_env, base_env = provider_env_names(provider, model)
 
     if key_env is not None:
-        api_key = os.getenv(key_env, "") or os.getenv(
+        api_key = os.getenv(  # noqa: env-gate
+            key_env, ""
+        ) or os.getenv(  # noqa: env-gate — dynamic provider key fallback
             "OPENAI_API_KEY", ""
-        )  # noqa: env-gate — dynamic provider key fallback
+        )
     else:
         api_key = (
-            os.getenv("OPENAI_API_KEY", "") or "ollama"
-        )  # noqa: env-gate — ollama default key
+            os.getenv("OPENAI_API_KEY", "")  # noqa: env-gate — ollama default key
+            or "ollama"
+        )
 
     base_url = (
         (
-            os.getenv(base_env, "") if base_env else ""
-        )  # noqa: env-gate — dynamic provider URL chain
-        or os.getenv(
+            os.getenv(base_env, "")  # noqa: env-gate — dynamic provider URL chain
+            if base_env
+            else ""
+        )
+        or os.getenv(  # noqa: env-gate — dynamic provider URL chain
             "OPENAI_BASE_URL", ""
-        )  # noqa: env-gate — dynamic provider URL chain
-        or os.getenv(
+        )
+        or os.getenv(  # noqa: env-gate — dynamic provider URL chain
             "OPENAI_API_BASE", ""
-        )  # noqa: env-gate — dynamic provider URL chain
+        )
     )
 
     return {

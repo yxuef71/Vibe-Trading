@@ -480,8 +480,9 @@ def _ensure_dotenv() -> None:
         get_env_config().llm.langchain_provider,
         get_env_config().llm.langchain_model_name or "(unset)",
         _redact_base_url_for_log(
-            os.getenv("OPENAI_BASE_URL") or os.getenv("OPENAI_API_BASE")
-        ),  # noqa: env-gate — diagnostic display
+            os.getenv("OPENAI_BASE_URL")  # noqa: env-gate — diagnostic display
+            or os.getenv("OPENAI_API_BASE")  # noqa: env-gate — diagnostic display
+        ),
     )
 
 
@@ -584,16 +585,16 @@ def provider_diagnostics() -> dict[str, Any]:
             "LANGCHAIN_MODEL_NAME": _redact_env_flag("LANGCHAIN_MODEL_NAME"),
             "OPENAI_API_KEY": _redact_env_flag("OPENAI_API_KEY"),
             "OPENAI_BASE_URL": _redact_base_url_for_log(
-                os.getenv("OPENAI_BASE_URL")
-            ),  # noqa: env-gate — diagnostic snapshot
+                os.getenv("OPENAI_BASE_URL")  # noqa: env-gate — diagnostic snapshot
+            ),
             "OPENAI_API_BASE": _redact_base_url_for_log(
-                os.getenv("OPENAI_API_BASE")
-            ),  # noqa: env-gate — diagnostic snapshot
+                os.getenv("OPENAI_API_BASE")  # noqa: env-gate — diagnostic snapshot
+            ),
         },
         "proxy": {
             name: _redact_proxy_url(
-                name, os.getenv(name)
-            )  # noqa: env-gate — proxy env iteration
+                name, os.getenv(name)  # noqa: env-gate — proxy env iteration
+            )
             for name in proxy_names
             if os.getenv(name)  # noqa: env-gate — proxy env filter
         },
