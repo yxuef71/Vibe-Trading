@@ -584,6 +584,16 @@ def _normalize_codes(codes: List[str], source: str) -> List[str]:
     return codes
 
 
+def _restore_original_codes(
+    data_map: dict,
+    original_codes: List[str],
+    normalized_codes: List[str],
+) -> dict:
+    """Map provider-normalized result keys back to requested symbols."""
+    aliases = dict(zip(normalized_codes, original_codes))
+    return {aliases.get(code, code): frame for code, frame in data_map.items()}
+
+
 def _columns_required_from_factor_spec(spec: Any) -> list[str]:
     """Extract ``columns_required`` from supported factor spec shapes.
 
@@ -1042,6 +1052,7 @@ def _fetch_auto(codes: List[str], config: dict, interval: str = "1D") -> dict:
 
         src_name = getattr(loader, "name", "unknown")
         normalized_codes = _normalize_codes(market_codes, src_name)
+        result_codes = normalized_codes
         fields = config.get("extra_fields") if src_name == "tushare" else None
         result = loader.fetch(normalized_codes, start_date, end_date, fields=fields, interval=interval)
 
@@ -1056,10 +1067,11 @@ def _fetch_auto(codes: List[str], config: dict, interval: str = "1D") -> dict:
                 fb_codes = _normalize_codes(market_codes, fb_name)
                 result = fb_loader.fetch(fb_codes, start_date, end_date, interval=interval)
                 if result:
+                    result_codes = fb_codes
                     logger.info("Runtime fallback: %s -> %s for %s", src_name, fb_name, market)
                     break
 
-        merged.update(result)
+        merged.update(_restore_original_codes(result, market_codes, result_codes))
 
     return merged
 
