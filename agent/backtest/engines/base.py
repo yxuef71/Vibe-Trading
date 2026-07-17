@@ -376,6 +376,11 @@ class BaseEngine(ABC):
         """Convert target notional exposure to number of units/contracts."""
         return target_notional / price
 
+    def _leverage_for_symbol(self, symbol: str) -> float:
+        """Return leverage used to size and margin one symbol."""
+        del symbol
+        return self.default_leverage
+
     # ── Main entry ──
 
     def run_backtest(
@@ -815,7 +820,7 @@ class BaseEngine(ABC):
         if open_price <= 0:
             return None
         price = self.apply_slippage(open_price, direction)
-        leverage = self.default_leverage
+        leverage = self._leverage_for_symbol(symbol)
         target_notional = abs(target_weight) * equity * leverage
         size = self.round_size(
             self._calc_raw_size(symbol, target_notional, price), price

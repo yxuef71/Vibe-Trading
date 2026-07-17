@@ -155,6 +155,9 @@ class CompositeEngine(BaseEngine):
     ) -> float:
         return self._rule_for(symbol)._calc_raw_size(symbol, target_notional, price)
 
+    def _leverage_for_symbol(self, symbol: str) -> float:
+        return self._rule_for(symbol)._leverage_for_symbol(symbol)
+
     # ── Stateful hooks (implemented directly, NO delegation) ──
 
     def on_bar(self, symbol: str, bar: pd.Series, timestamp: pd.Timestamp) -> None:
