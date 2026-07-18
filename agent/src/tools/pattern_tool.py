@@ -30,6 +30,8 @@ def find_peaks_valleys(close: pd.Series, window: int = 5) -> dict:
     Returns:
         Dict with keys "peaks" and "valleys", each a list of integer indices.
     """
+    if window < 1:
+        raise ValueError(f"window must be >= 1, got {window}")
     n = len(close)
     if n < 2 * window + 1:
         return {"peaks": [], "valleys": []}
@@ -138,6 +140,8 @@ def trend_line_slope(close: pd.Series, window: int = 20) -> pd.Series:
     Returns:
         Series of slope values; first window-1 entries are NaN.
     """
+    if window < 1:
+        raise ValueError(f"window must be >= 1, got {window}")
     n = len(close)
     slopes = np.full(n, np.nan)
     values = close.values.astype(float)
@@ -329,6 +333,12 @@ def run_pattern(run_dir: str, patterns: str = "all", window: int = 10) -> str:
         selected = [p.strip() for p in patterns.split(",") if p.strip() in _PATTERN_FUNCS]
         if not selected:
             return json.dumps({"status": "error", "error": f"Invalid pattern name(s). Available: {', '.join(_PATTERN_FUNCS.keys())}"}, ensure_ascii=False)
+
+    if window < 1:
+        return json.dumps(
+            {"status": "error", "error": f"window must be >= 1, got {window}"},
+            ensure_ascii=False,
+        )
 
     results: Dict[str, Any] = {}
     for f in ohlcv_files:

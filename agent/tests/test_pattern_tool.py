@@ -252,3 +252,30 @@ def _write_ohlcv(path: Path) -> None:
         index=idx,
     )
     df.to_csv(path)
+
+
+def test_find_peaks_valleys_rejects_nonpositive_window() -> None:
+    close = pd.Series(range(30), dtype=float)
+    with pytest.raises(ValueError, match="window"):
+        find_peaks_valleys(close, window=-1)
+    with pytest.raises(ValueError, match="window"):
+        find_peaks_valleys(close, window=0)
+
+
+def test_trend_line_slope_rejects_nonpositive_window() -> None:
+    close = pd.Series(range(30), dtype=float)
+    with pytest.raises(ValueError, match="window"):
+        trend_line_slope(close, window=0)
+
+
+def test_run_pattern_nonpositive_window_returns_json_error(allow_runs: Path) -> None:
+    run_dir = allow_runs / "run1"
+    arts = run_dir / "artifacts"
+    arts.mkdir(parents=True)
+    pd.DataFrame(
+        {"open": range(30), "high": range(30), "low": range(30), "close": range(30), "volume": 1},
+        index=pd.date_range("2024-01-01", periods=30),
+    ).to_csv(arts / "ohlcv_TEST.csv")
+    out = json.loads(run_pattern(str(run_dir), patterns="peaks_valleys", window=-1))
+    assert out["status"] == "error"
+    assert "window" in out["error"]
