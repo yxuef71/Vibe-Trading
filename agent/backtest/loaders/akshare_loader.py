@@ -25,6 +25,16 @@ _INTERVAL_MAP_DAILY = {
     "1M": "monthly",
 }
 
+# US/HK/ETF/forex serve daily bars only.
+_DAILY_ONLY_ALIASES = frozenset({"1d", "d", "day", "daily"})
+
+
+def _require_daily_interval(interval: str, market: str) -> None:
+    if str(interval).strip().lower() not in _DAILY_ONLY_ALIASES:
+        raise ValueError(
+            f"Unsupported interval {interval!r}; akshare {market} supports daily bars only"
+        )
+
 
 def _is_a_share(code: str) -> bool:
     return code.upper().endswith((".SZ", ".SH", ".BJ"))
@@ -129,14 +139,18 @@ class DataLoader:
 
         # ETF check must precede A-share — 518880.SH ends with .SH but is an ETF.
         if _is_etf_listed(code):
+            _require_daily_interval(interval, "etf")
             return self._fetch_etf(ak, code, start_date, end_date)
         if _is_a_share(code):
             return self._fetch_a_share(ak, code, start_date, end_date, interval)
         if _is_us(code):
+            _require_daily_interval(interval, "us")
             return self._fetch_us(ak, code, start_date, end_date)
         if _is_hk(code):
+            _require_daily_interval(interval, "hk")
             return self._fetch_hk(ak, code, start_date, end_date)
         if _is_forex(code):
+            _require_daily_interval(interval, "forex")
             return self._fetch_forex(ak, code, start_date, end_date)
         # Default: try A-share
         return self._fetch_a_share(ak, code, start_date, end_date, interval)
