@@ -38,13 +38,16 @@ logger = logging.getLogger(__name__)
 _MT5_CONFIG_PATH = Path.home() / ".vibe-trading" / "mt5.json"
 
 #: Canonical interval token → MetaTrader5 timeframe constant name.
-#: Lowercase ``1h``/``4h``/``1d`` alias the project-style tokens (connector parity).
+#: Lowercase ``1h``/``4h``/``1d``/``1w`` alias project-style tokens (connector parity).
+#: ``1m`` (minute) and ``1M`` (month) differ by case.
 _INTERVAL_MAP = {
     "1m": "TIMEFRAME_M1", "5m": "TIMEFRAME_M5", "15m": "TIMEFRAME_M15",
     "30m": "TIMEFRAME_M30",
     "1H": "TIMEFRAME_H1", "1h": "TIMEFRAME_H1",
     "4H": "TIMEFRAME_H4", "4h": "TIMEFRAME_H4",
     "1D": "TIMEFRAME_D1", "1d": "TIMEFRAME_D1",
+    "1W": "TIMEFRAME_W1", "1w": "TIMEFRAME_W1",
+    "1M": "TIMEFRAME_MN1",
 }
 
 #: Process-lifetime attach cache: ``initialize`` can take seconds (it may even
@@ -195,10 +198,11 @@ class DataLoader:
         runtime fallback can engage for the missing symbols.
         """
         validate_date_range(start_date, end_date)
-        timeframe_name = _INTERVAL_MAP.get(interval)
+        timeframe_name = _INTERVAL_MAP.get(str(interval).strip())
         if timeframe_name is None:
-            logger.warning("unsupported MT5 interval %s, using 1D", interval)
-            interval, timeframe_name = "1D", "TIMEFRAME_D1"
+            # Reject unknown tokens; do not fetch TIMEFRAME_D1 under the caller's key.
+            logger.warning("mt5 unsupported interval %r; rejecting", interval)
+            return {}
 
         result: dict[str, pd.DataFrame] = {}
         for code in codes:
